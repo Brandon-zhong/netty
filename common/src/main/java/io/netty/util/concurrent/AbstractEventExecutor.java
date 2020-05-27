@@ -29,6 +29,7 @@ import java.util.concurrent.RunnableFuture;
 import java.util.concurrent.TimeUnit;
 
 /**
+ * 抽象的执行器实现
  * Abstract base class for {@link EventExecutor} implementations.
  */
 public abstract class AbstractEventExecutor extends AbstractExecutorService implements EventExecutor {

@@ -27,10 +27,12 @@ public final class DefaultEventExecutorChooserFactory implements EventExecutorCh
 
     public static final DefaultEventExecutorChooserFactory INSTANCE = new DefaultEventExecutorChooserFactory();
 
-    private DefaultEventExecutorChooserFactory() { }
+    private DefaultEventExecutorChooserFactory() {
+    }
 
     @SuppressWarnings("unchecked")
     @Override
+    //生成一个事件执行器选择器
     public EventExecutorChooser newChooser(EventExecutor[] executors) {
         if (isPowerOfTwo(executors.length)) {
             return new PowerOfTwoEventExecutorChooser(executors);
@@ -39,10 +41,12 @@ public final class DefaultEventExecutorChooserFactory implements EventExecutorCh
         }
     }
 
+    //判断是否是2的幂次方
     private static boolean isPowerOfTwo(int val) {
         return (val & -val) == val;
     }
 
+    //数量为2的幂次方的执行器选择器
     private static final class PowerOfTwoEventExecutorChooser implements EventExecutorChooser {
         private final AtomicInteger idx = new AtomicInteger();
         private final EventExecutor[] executors;
@@ -51,12 +55,14 @@ public final class DefaultEventExecutorChooserFactory implements EventExecutorCh
             this.executors = executors;
         }
 
+        //获取一个执行器，这里的&操作是轮询，遍历一遍后会从头开始拿
         @Override
         public EventExecutor next() {
             return executors[idx.getAndIncrement() & executors.length - 1];
         }
     }
 
+    //数量不是2的幂次方的选择器
     private static final class GenericEventExecutorChooser implements EventExecutorChooser {
         private final AtomicInteger idx = new AtomicInteger();
         private final EventExecutor[] executors;
@@ -65,6 +71,7 @@ public final class DefaultEventExecutorChooserFactory implements EventExecutorCh
             this.executors = executors;
         }
 
+        //取余操作拿去执行器
         @Override
         public EventExecutor next() {
             return executors[Math.abs(idx.getAndIncrement() % executors.length)];

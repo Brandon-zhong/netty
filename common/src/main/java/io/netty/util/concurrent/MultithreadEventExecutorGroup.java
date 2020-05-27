@@ -72,15 +72,18 @@ public abstract class MultithreadEventExecutorGroup extends AbstractEventExecuto
             throw new IllegalArgumentException(String.format("nThreads: %d (expected: > 0)", nThreads));
         }
 
+        //创建执行器
         if (executor == null) {
             executor = new ThreadPerTaskExecutor(newDefaultThreadFactory());
         }
 
+        //创建事件执行器接口
         children = new EventExecutor[nThreads];
 
         for (int i = 0; i < nThreads; i ++) {
             boolean success = false;
             try {
+                //创建任务执行器
                 children[i] = newChild(executor, args);
                 success = true;
             } catch (Exception e) {
@@ -108,6 +111,7 @@ public abstract class MultithreadEventExecutorGroup extends AbstractEventExecuto
             }
         }
 
+        //创建选择器
         chooser = chooserFactory.newChooser(children);
 
         final FutureListener<Object> terminationListener = new FutureListener<Object>() {
@@ -118,7 +122,6 @@ public abstract class MultithreadEventExecutorGroup extends AbstractEventExecuto
                 }
             }
         };
-
         for (EventExecutor e: children) {
             e.terminationFuture().addListener(terminationListener);
         }
@@ -128,15 +131,18 @@ public abstract class MultithreadEventExecutorGroup extends AbstractEventExecuto
         readonlyChildren = Collections.unmodifiableSet(childrenSet);
     }
 
+    //创建一个线程工厂
     protected ThreadFactory newDefaultThreadFactory() {
         return new DefaultThreadFactory(getClass());
     }
 
+    //通过选择来获取一个执行器
     @Override
     public EventExecutor next() {
         return chooser.next();
     }
 
+    //基于只读执行器列表的迭代器
     @Override
     public Iterator<EventExecutor> iterator() {
         return readonlyChildren.iterator();
@@ -151,6 +157,7 @@ public abstract class MultithreadEventExecutorGroup extends AbstractEventExecuto
     }
 
     /**
+     *
      * Create a new EventExecutor which will later then accessible via the {@link #next()}  method. This method will be
      * called for each thread that will serve this {@link MultithreadEventExecutorGroup}.
      *

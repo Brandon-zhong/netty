@@ -55,6 +55,7 @@ public abstract class SingleThreadEventExecutor extends AbstractScheduledEventEx
     private static final InternalLogger logger =
             InternalLoggerFactory.getInstance(SingleThreadEventExecutor.class);
 
+    //线程的5个状态
     private static final int ST_NOT_STARTED = 1;
     private static final int ST_STARTED = 2;
     private static final int ST_SHUTTING_DOWN = 3;
@@ -74,8 +75,10 @@ public abstract class SingleThreadEventExecutor extends AbstractScheduledEventEx
             AtomicReferenceFieldUpdater.newUpdater(
                     SingleThreadEventExecutor.class, ThreadProperties.class, "threadProperties");
 
+    //任务队列
     private final Queue<Runnable> taskQueue;
 
+    //线程
     private volatile Thread thread;
     @SuppressWarnings("unused")
     private volatile ThreadProperties threadProperties;
@@ -181,6 +184,7 @@ public abstract class SingleThreadEventExecutor extends AbstractScheduledEventEx
     }
 
     /**
+     * 创建一个阻塞队列
      * Create a new {@link Queue} which will holds the tasks to execute. This default implementation will return a
      * {@link LinkedBlockingQueue} but if your sub-class of {@link SingleThreadEventExecutor} will not do any blocking
      * calls on the this {@link Queue} it may make sense to {@code @Override} this and return some more performant
@@ -191,6 +195,7 @@ public abstract class SingleThreadEventExecutor extends AbstractScheduledEventEx
     }
 
     /**
+     * 中断当前线程
      * Interrupt the current running {@link Thread}.
      */
     protected void interruptThread() {
@@ -203,10 +208,13 @@ public abstract class SingleThreadEventExecutor extends AbstractScheduledEventEx
     }
 
     /**
+     * 弹出一个任务
      * @see Queue#poll()
      */
     protected Runnable pollTask() {
+        //判断当前线程是否是eventLoop线程
         assert inEventLoop();
+        //弹出一个任务
         return pollTaskFrom(taskQueue);
     }
 
@@ -220,6 +228,7 @@ public abstract class SingleThreadEventExecutor extends AbstractScheduledEventEx
     }
 
     /**
+     * 从队列中获取一个任务
      * Take the next {@link Runnable} from the task queue and so will block if no task is currently present.
      * <p>
      * Be aware that this method will throw an {@link UnsupportedOperationException} if the task queue, which was
@@ -230,6 +239,8 @@ public abstract class SingleThreadEventExecutor extends AbstractScheduledEventEx
      */
     protected Runnable takeTask() {
         assert inEventLoop();
+
+        //只支持阻塞队列
         if (!(taskQueue instanceof BlockingQueue)) {
             throw new UnsupportedOperationException();
         }
@@ -338,6 +349,7 @@ public abstract class SingleThreadEventExecutor extends AbstractScheduledEventEx
     }
 
     /**
+     * 添加任务
      * Add a task to the task queue, or throws a {@link RejectedExecutionException} if this instance was shutdown
      * before.
      */
@@ -348,6 +360,7 @@ public abstract class SingleThreadEventExecutor extends AbstractScheduledEventEx
         }
     }
 
+    //添加任务
     final boolean offerTask(Runnable task) {
         if (isShutdown()) {
             reject();
@@ -356,6 +369,7 @@ public abstract class SingleThreadEventExecutor extends AbstractScheduledEventEx
     }
 
     /**
+     * 移除指定任务
      * @see Queue#remove(Object)
      */
     protected boolean removeTask(Runnable task) {
@@ -562,9 +576,11 @@ public abstract class SingleThreadEventExecutor extends AbstractScheduledEventEx
     }
 
     /**
+     * 增加一个关闭钩子，在关闭的时候调用
      * Add a {@link Runnable} which will be executed on shutdown of this instance
      */
     public void addShutdownHook(final Runnable task) {
+        //只有event loop线程可以执行
         if (inEventLoop()) {
             shutdownHooks.add(task);
         } else {
@@ -578,6 +594,7 @@ public abstract class SingleThreadEventExecutor extends AbstractScheduledEventEx
     }
 
     /**
+     * 移除一个之前增加的钩子
      * Remove a previous added {@link Runnable} as a shutdown hook
      */
     public void removeShutdownHook(final Runnable task) {
@@ -593,6 +610,7 @@ public abstract class SingleThreadEventExecutor extends AbstractScheduledEventEx
         }
     }
 
+    //运行关闭存储的钩子，此方法应该是当前executor关闭时调用
     private boolean runShutdownHooks() {
         boolean ran = false;
         // Note shutdown hooks can add / remove shutdown hooks.
@@ -812,17 +830,20 @@ public abstract class SingleThreadEventExecutor extends AbstractScheduledEventEx
         return isTerminated();
     }
 
+    //执行一个任务
     @Override
     public void execute(Runnable task) {
         ObjectUtil.checkNotNull(task, "task");
         execute(task, !(task instanceof LazyRunnable) && wakesUpForTask(task));
     }
 
+    //懒执行一个任务
     @Override
     public void lazyExecute(Runnable task) {
         execute(ObjectUtil.checkNotNull(task, "task"), false);
     }
 
+    //执行一个任务，是否立即执行
     private void execute(Runnable task, boolean immediate) {
         boolean inEventLoop = inEventLoop();
         addTask(task);
@@ -894,11 +915,13 @@ public abstract class SingleThreadEventExecutor extends AbstractScheduledEventEx
             Thread thread = this.thread;
             if (thread == null) {
                 assert !inEventLoop();
+                //提交空任务，触发execute方法执行
                 submit(NOOP_TASK).syncUninterruptibly();
                 thread = this.thread;
                 assert thread != null;
             }
 
+            //创建thread properties， 并cas设置
             threadProperties = new DefaultThreadProperties(thread);
             if (!PROPERTIES_UPDATER.compareAndSet(this, null, threadProperties)) {
                 threadProperties = this.threadProperties;
@@ -927,6 +950,7 @@ public abstract class SingleThreadEventExecutor extends AbstractScheduledEventEx
     }
 
     /**
+     * 拒绝指定任务
      * Offers the task to the associated {@link RejectedExecutionHandler}.
      *
      * @param task to reject.
@@ -939,11 +963,14 @@ public abstract class SingleThreadEventExecutor extends AbstractScheduledEventEx
 
     private static final long SCHEDULE_PURGE_INTERVAL = TimeUnit.SECONDS.toNanos(1);
 
+    //启动线程
     private void startThread() {
         if (state == ST_NOT_STARTED) {
+            //cas设置线程状态
             if (STATE_UPDATER.compareAndSet(this, ST_NOT_STARTED, ST_STARTED)) {
                 boolean success = false;
                 try {
+                    //启动线程
                     doStartThread();
                     success = true;
                 } finally {
