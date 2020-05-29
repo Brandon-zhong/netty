@@ -111,8 +111,11 @@ public final class NioEventLoop extends SingleThreadEventLoop {
     /**
      * The NIO {@link Selector}.
      */
+    //包装了的selector
     private Selector selector;
+    //未包装的selector
     private Selector unwrappedSelector;
+    //io事件集合
     private SelectedSelectionKeySet selectedKeys;
 
     private final SelectorProvider provider;
@@ -438,6 +441,7 @@ public final class NioEventLoop extends SingleThreadEventLoop {
             try {
                 int strategy;
                 try {
+                    //调用select()查询io就绪事件，selectNowSupplier的get()方法
                     strategy = selectStrategy.calculateStrategy(selectNowSupplier, hasTasks());
                     switch (strategy) {
                     case SelectStrategy.CONTINUE:
@@ -446,7 +450,8 @@ public final class NioEventLoop extends SingleThreadEventLoop {
                     case SelectStrategy.BUSY_WAIT:
                         // fall-through to SELECT since the busy-wait is not supported with NIO
 
-                    case SelectStrategy.SELECT:
+                    case SelectStrategy.SELECT:  //查询到有就绪的任务
+                        //下一个任务中的执行时间
                         long curDeadlineNanos = nextScheduledTaskDeadlineNanos();
                         if (curDeadlineNanos == -1L) {
                             curDeadlineNanos = NONE; // nothing on the calendar
@@ -481,6 +486,7 @@ public final class NioEventLoop extends SingleThreadEventLoop {
                 if (ioRatio == 100) {
                     try {
                         if (strategy > 0) {
+                            //处理已经就绪的事件
                             processSelectedKeys();
                         }
                     } finally {
@@ -637,8 +643,10 @@ public final class NioEventLoop extends SingleThreadEventLoop {
         }
     }
 
+    //处理已经就绪的事件，优化后的
     private void processSelectedKeysOptimized() {
         for (int i = 0; i < selectedKeys.size; ++i) {
+            //取出一个key，随后将数组中的位置置null
             final SelectionKey k = selectedKeys.keys[i];
             // null out entry in the array to allow to have it GC'ed once the Channel close
             // See https://github.com/netty/netty/issues/2363
@@ -646,6 +654,7 @@ public final class NioEventLoop extends SingleThreadEventLoop {
 
             final Object a = k.attachment();
 
+            //处理每个selectKey
             if (a instanceof AbstractNioChannel) {
                 processSelectedKey(k, (AbstractNioChannel) a);
             } else {
@@ -654,6 +663,7 @@ public final class NioEventLoop extends SingleThreadEventLoop {
                 processSelectedKey(k, task);
             }
 
+            //如果需要重新select， 将后面的所有key置null
             if (needsToSelectAgain) {
                 // null out entries in the array to allow to have it GC'ed once the Channel close
                 // See https://github.com/netty/netty/issues/2363
@@ -689,6 +699,7 @@ public final class NioEventLoop extends SingleThreadEventLoop {
         }
 
         try {
+            //当前selectKey就绪的事件
             int readyOps = k.readyOps();
             // We first need to call finishConnect() before try to trigger a read(...) or write(...) as otherwise
             // the NIO JDK channel implementation may throw a NotYetConnectedException.
