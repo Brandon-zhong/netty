@@ -109,16 +109,19 @@ public abstract class SingleThreadEventLoop extends SingleThreadEventExecutor im
             reject();
         }
 
+        // 添加任务到队列中
         if (!tailTasks.offer(task)) {
             reject(task);
         }
 
+        //唤醒线程
         if (!(task instanceof LazyRunnable) && wakesUpForTask(task)) {
             wakeup(inEventLoop());
         }
     }
 
     /**
+     * 移除之前添加的队列的任务
      * Removes a task that was added previously via {@link #executeAfterEventLoopIteration(Runnable)}.
      *
      * @param task to be removed.

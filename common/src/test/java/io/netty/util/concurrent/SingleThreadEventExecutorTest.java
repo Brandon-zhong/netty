@@ -119,7 +119,7 @@ public class SingleThreadEventExecutorTest {
         testInvokeInEventLoop(true, true);
     }
 
-    @Test(expected = RejectedExecutionException.class, timeout = 3000)
+    @Test
     public void testInvokeAllInEventLoop() {
         testInvokeInEventLoop(false, false);
     }

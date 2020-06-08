@@ -72,6 +72,7 @@ public abstract class AbstractNioMessageChannel extends AbstractNioChannel {
             try {
                 try {
                     do {
+                        //读取消息，返回读取的消息数量
                         int localRead = doReadMessages(readBuf);
                         if (localRead == 0) {
                             break;
@@ -80,7 +81,7 @@ public abstract class AbstractNioMessageChannel extends AbstractNioChannel {
                             closed = true;
                             break;
                         }
-
+                        //统计已读消息数量
                         allocHandle.incMessagesRead(localRead);
                     } while (allocHandle.continueReading());
                 } catch (Throwable t) {
@@ -90,10 +91,13 @@ public abstract class AbstractNioMessageChannel extends AbstractNioChannel {
                 int size = readBuf.size();
                 for (int i = 0; i < size; i ++) {
                     readPending = false;
+                    //触发handler的channelRead 方法
                     pipeline.fireChannelRead(readBuf.get(i));
                 }
+                //所有消息处理完成之后，清空暂存的消息
                 readBuf.clear();
                 allocHandle.readComplete();
+                //触发handler的readComplete方法
                 pipeline.fireChannelReadComplete();
 
                 if (exception != null) {

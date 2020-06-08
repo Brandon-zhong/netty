@@ -50,9 +50,12 @@ public abstract class AbstractNioChannel extends AbstractChannel {
     private static final InternalLogger logger =
             InternalLoggerFactory.getInstance(AbstractNioChannel.class);
 
+    //java channel
     private final SelectableChannel ch;
+    //读事件
     protected final int readInterestOp;
     volatile SelectionKey selectionKey;
+    //读事件标记位
     boolean readPending;
     private final Runnable clearReadPendingRunnable = new Runnable() {
         @Override
@@ -65,29 +68,33 @@ public abstract class AbstractNioChannel extends AbstractChannel {
      * The future of the current connection attempt.  If not null, subsequent
      * connection attempts will fail.
      */
+    //连接的异步结果
     private ChannelPromise connectPromise;
+    //连接超时检测任务异步结果
     private ScheduledFuture<?> connectTimeoutFuture;
+    //远程连接地址
     private SocketAddress requestedRemoteAddress;
 
     /**
      * Create a new instance
      *
-     * @param parent            the parent {@link Channel} by which this instance was created. May be {@code null}
-     * @param ch                the underlying {@link SelectableChannel} on which it operates
-     * @param readInterestOp    the ops to set to receive data from the {@link SelectableChannel}
+     * @param parent         the parent {@link Channel} by which this instance was created. May be {@code null}
+     * @param ch             the underlying {@link SelectableChannel} on which it operates
+     * @param readInterestOp the ops to set to receive data from the {@link SelectableChannel}
      */
     protected AbstractNioChannel(Channel parent, SelectableChannel ch, int readInterestOp) {
         super(parent);
         this.ch = ch;
         this.readInterestOp = readInterestOp;
         try {
+            //设置非阻塞
             ch.configureBlocking(false);
         } catch (IOException e) {
             try {
                 ch.close();
             } catch (IOException e2) {
                 logger.warn(
-                            "Failed to close a partially initialized socket.", e2);
+                        "Failed to close a partially initialized socket.", e2);
             }
 
             throw new ChannelException("Failed to enter non-blocking mode.", e);
@@ -211,6 +218,9 @@ public abstract class AbstractNioChannel extends AbstractChannel {
 
     protected abstract class AbstractNioUnsafe extends AbstractUnsafe implements NioUnsafe {
 
+        /**
+         * 移除read事件
+         */
         protected final void removeReadOp() {
             SelectionKey key = selectionKey();
             // Check first if the key is still valid as it may be canceled as part of the deregistration
@@ -245,15 +255,19 @@ public abstract class AbstractNioChannel extends AbstractChannel {
                 }
 
                 boolean wasActive = isActive();
+                //实际的连接操作
                 if (doConnect(remoteAddress, localAddress)) {
+                    //连接操作完成，将promise设置为成功
                     fulfillConnectPromise(promise, wasActive);
                 } else {
+                    //连接操作还没完成
                     connectPromise = promise;
                     requestedRemoteAddress = remoteAddress;
 
                     // Schedule connect timeout.
                     int connectTimeoutMillis = config().getConnectTimeoutMillis();
                     if (connectTimeoutMillis > 0) {
+                        //这里建一个超时任务，设置为超时时间执行
                         connectTimeoutFuture = eventLoop().schedule(new Runnable() {
                             @Override
                             public void run() {
@@ -267,10 +281,12 @@ public abstract class AbstractNioChannel extends AbstractChannel {
                         }, connectTimeoutMillis, TimeUnit.MILLISECONDS);
                     }
 
+                    //连接回调增加监听器，操作完成的时候执行监听器
                     promise.addListener(new ChannelFutureListener() {
                         @Override
                         public void operationComplete(ChannelFuture future) throws Exception {
                             if (future.isCancelled()) {
+                                //连接完成，取消超时任务
                                 if (connectTimeoutFuture != null) {
                                     connectTimeoutFuture.cancel(false);
                                 }
@@ -372,11 +388,15 @@ public abstract class AbstractNioChannel extends AbstractChannel {
         return loop instanceof NioEventLoop;
     }
 
+    /**
+     * 实际的注册操作
+     */
     @Override
     protected void doRegister() throws Exception {
         boolean selected = false;
-        for (;;) {
+        for (; ; ) {
             try {
+                //将当前channel注册到selector上，  注册事件为0 不关心任何事件
                 selectionKey = javaChannel().register(eventLoop().unwrappedSelector(), 0, this);
                 return;
             } catch (CancelledKeyException e) {
@@ -394,6 +414,10 @@ public abstract class AbstractNioChannel extends AbstractChannel {
         }
     }
 
+    /**
+     * 取消selectorKey， 实际调用的是selectKey的cancel操作
+     * 这里的取消操作不是立刻执行，而是将selectorKey加入到selector的一个取消集合中
+     */
     @Override
     protected void doDeregister() throws Exception {
         eventLoop().cancel(selectionKey());
@@ -407,15 +431,18 @@ public abstract class AbstractNioChannel extends AbstractChannel {
             return;
         }
 
+        //设置读标志位
         readPending = true;
 
         final int interestOps = selectionKey.interestOps();
+        //设置关心read事件
         if ((interestOps & readInterestOp) == 0) {
             selectionKey.interestOps(interestOps | readInterestOp);
         }
     }
 
     /**
+     * 连接操作继续留给子类实现
      * Connect to the remote peer
      */
     protected abstract boolean doConnect(SocketAddress remoteAddress, SocketAddress localAddress) throws Exception;
@@ -494,15 +521,20 @@ public abstract class AbstractNioChannel extends AbstractChannel {
         return buf;
     }
 
+    /**
+     * 这一块的关闭操作只是做了关闭的后续处理，并没有实际的关闭操作，应该留给子类实现
+     */
     @Override
     protected void doClose() throws Exception {
         ChannelPromise promise = connectPromise;
+        //设置连接失败
         if (promise != null) {
             // Use tryFailure() instead of setFailure() to avoid the race against cancel().
             promise.tryFailure(new ClosedChannelException());
             connectPromise = null;
         }
 
+        //还没连接上，超时时间内，取消超时操作
         ScheduledFuture<?> future = connectTimeoutFuture;
         if (future != null) {
             future.cancel(false);

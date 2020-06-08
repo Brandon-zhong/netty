@@ -40,11 +40,13 @@ import java.util.List;
 import java.util.Map;
 
 /**
+ * ServerSocketChannel 的一个实现类，用于selector接受一个新的连接，
+ * 需要注意的是：这个channel只支持bind、read、close操作
  * A {@link io.netty.channel.socket.ServerSocketChannel} implementation which uses
  * NIO selector based implementation to accept new connections.
  */
 public class NioServerSocketChannel extends AbstractNioMessageChannel
-                             implements io.netty.channel.socket.ServerSocketChannel {
+        implements io.netty.channel.socket.ServerSocketChannel {
 
     private static final ChannelMetadata METADATA = new ChannelMetadata(false, 16);
     private static final SelectorProvider DEFAULT_SELECTOR_PROVIDER = SelectorProvider.provider();
@@ -148,6 +150,7 @@ public class NioServerSocketChannel extends AbstractNioMessageChannel
 
         try {
             if (ch != null) {
+                //一个消息一个socketChannel
                 buf.add(new NioSocketChannel(this, ch));
                 return 1;
             }

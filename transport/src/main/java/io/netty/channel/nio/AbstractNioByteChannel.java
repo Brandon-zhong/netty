@@ -58,7 +58,7 @@ public abstract class AbstractNioByteChannel extends AbstractNioChannel {
 
     /**
      * Create a new instance
-     *
+     * 创建一个实例，并注册read事件
      * @param parent            the parent {@link Channel} by which this instance was created. May be {@code null}
      * @param ch                the underlying {@link SelectableChannel} on which it operates
      */
@@ -145,11 +145,13 @@ public abstract class AbstractNioByteChannel extends AbstractNioChannel {
             try {
                 do {
                     byteBuf = allocHandle.allocate(allocator);
+                    //读数据
                     allocHandle.lastBytesRead(doReadBytes(byteBuf));
                     if (allocHandle.lastBytesRead() <= 0) {
                         // nothing was read. release the buffer.
                         byteBuf.release();
                         byteBuf = null;
+                        //读取数量为负数，表示对端已经关闭
                         close = allocHandle.lastBytesRead() < 0;
                         if (close) {
                             // There is nothing left to read as we received an EOF.
@@ -158,12 +160,15 @@ public abstract class AbstractNioByteChannel extends AbstractNioChannel {
                         break;
                     }
 
+                    //统计已读消息数
                     allocHandle.incMessagesRead(1);
                     readPending = false;
+                    //触发channelRead方法
                     pipeline.fireChannelRead(byteBuf);
                     byteBuf = null;
                 } while (allocHandle.continueReading());
 
+                //读取完成，触发ReadComplete方法
                 allocHandle.readComplete();
                 pipeline.fireChannelReadComplete();
 
@@ -264,14 +269,17 @@ public abstract class AbstractNioByteChannel extends AbstractNioChannel {
         incompleteWrite(writeSpinCount < 0);
     }
 
+    /**
+     * 过滤写数据，数据的类型只有DirectBuffer和FileRegion两种
+     */
     @Override
     protected final Object filterOutboundMessage(Object msg) {
+        //如果为ByteBuf， 则统一转成directBuf
         if (msg instanceof ByteBuf) {
             ByteBuf buf = (ByteBuf) msg;
             if (buf.isDirect()) {
                 return msg;
             }
-
             return newDirectBuffer(buf);
         }
 
